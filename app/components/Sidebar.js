@@ -40,9 +40,13 @@ function Sidebar({ selectedChatId, setSelectedChatId }) {
     useEffect(() => {
         if (!user) return;
 
+        // Normalize email to lowercase for query
+        const normalizedEmail = user.email?.toLowerCase();
+        if (!normalizedEmail) return;
+
         const q = query(
             collection(db, "chats"),
-            where("users", "array-contains", user.email)
+            where("users", "array-contains", normalizedEmail)
         );
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -127,10 +131,15 @@ function Sidebar({ selectedChatId, setSelectedChatId }) {
             return;
         }
 
-        // Check if chat already exists
-        const existingChat = chats.find(chat => 
-            chat.users.includes(email) && chat.users.includes(user.email)
-        );
+        // Normalize emails to lowercase for consistent comparison
+        const normalizedUserEmail = user.email?.toLowerCase();
+        const normalizedEmail = email.toLowerCase();
+
+        // Check if chat already exists (case-insensitive)
+        const existingChat = chats.find(chat => {
+            const chatUsers = chat.users?.map(u => u?.toLowerCase()) || [];
+            return chatUsers.includes(normalizedEmail) && chatUsers.includes(normalizedUserEmail);
+        });
 
         if (existingChat) {
             setSelectedChatId(existingChat.id);
@@ -138,10 +147,12 @@ function Sidebar({ selectedChatId, setSelectedChatId }) {
         }
 
         try {
+            // Store emails in lowercase for consistency
             const newChat = await addDoc(collection(db, "chats"), {
-                users: [user.email, email],
-                timestamp: new Date(),
+                users: [normalizedUserEmail, normalizedEmail],
+                timestamp: serverTimestamp(),
             });
+            console.log("Chat created successfully:", newChat.id);
             setSelectedChatId(newChat.id);
         } catch (error) {
             console.error("Error creating chat:", error);
@@ -150,7 +161,8 @@ function Sidebar({ selectedChatId, setSelectedChatId }) {
     };
 
     const getRecipientEmail = (chat) => {
-        return chat.users.find(email => email !== user.email) || chat.users[0];
+        const normalizedUserEmail = user.email?.toLowerCase();
+        return chat.users?.find(email => email?.toLowerCase() !== normalizedUserEmail) || chat.users?.[0] || "";
     };
 
     const filteredChats = chats.filter(chat => {

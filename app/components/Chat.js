@@ -24,8 +24,14 @@ function Chat({ chatId }) {
         const chatRef = doc(db, "chats", chatId);
         const unsubscribeChat = onSnapshot(chatRef, (snapshot) => {
             if (snapshot.exists()) {
-                setChatData({ id: snapshot.id, ...snapshot.data() });
+                const data = { id: snapshot.id, ...snapshot.data() };
+                console.log("Chat data loaded:", data);
+                setChatData(data);
+            } else {
+                console.error("Chat document does not exist:", chatId);
             }
+        }, (error) => {
+            console.error("Error listening to chat:", error);
         });
 
         // Get messages
@@ -39,7 +45,11 @@ function Chat({ chatId }) {
                 id: doc.id,
                 ...doc.data(),
             }));
+            console.log("Messages received:", messagesData.length, "messages");
+            console.log("Messages data:", messagesData);
             setMessages(messagesData);
+        }, (error) => {
+            console.error("Error listening to messages:", error);
         });
 
         return () => {
@@ -81,10 +91,13 @@ function Chat({ chatId }) {
         const messageText = inputMessage.trim();
 
         try {
+            // Normalize email to lowercase for consistency
+            const normalizedSenderEmail = user.email?.toLowerCase();
+            
             // Add message to subcollection
             await addDoc(collection(db, "chats", chatId, "messages"), {
                 text: messageText,
-                sender: user.email,
+                sender: normalizedSenderEmail,
                 timestamp: serverTimestamp(),
             });
 
@@ -104,7 +117,8 @@ function Chat({ chatId }) {
 
     const getRecipientEmail = () => {
         if (!chatData || !user) return "";
-        return chatData.users.find(email => email !== user.email) || chatData.users[0];
+        const normalizedUserEmail = user.email?.toLowerCase();
+        return chatData.users?.find(email => email?.toLowerCase() !== normalizedUserEmail) || chatData.users?.[0] || "";
     };
 
     // Fetch recipient user data from users collection
@@ -219,7 +233,10 @@ function Chat({ chatId }) {
                     <NoMessages>No messages yet. Start the conversation!</NoMessages>
                 ) : (
                     messages.map((message) => {
-                        const isOwnMessage = message.sender === user.email;
+                        // Case-insensitive comparison for sender
+                        const normalizedUserEmail = user.email?.toLowerCase();
+                        const normalizedSender = message.sender?.toLowerCase();
+                        const isOwnMessage = normalizedSender === normalizedUserEmail;
                         return (
                             <MessageWrapper key={message.id} $isOwn={isOwnMessage}>
                                 <Message $isOwn={isOwnMessage}>
