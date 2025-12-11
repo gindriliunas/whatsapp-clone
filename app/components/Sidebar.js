@@ -216,20 +216,68 @@ function Sidebar({ selectedChatId, setSelectedChatId }) {
         const normalizedUserEmail = user.email?.toLowerCase();
         const normalizedEmail = email.toLowerCase();
 
-        // Check if chat already exists (case-insensitive)
-        const existingChat = chats.find(chat => {
+        // First, check local state for existing chat
+        const existingChatLocal = chats.find(chat => {
             const chatUsers = chat.users?.map(u => u?.toLowerCase()) || [];
             return chatUsers.includes(normalizedEmail) && chatUsers.includes(normalizedUserEmail);
         });
 
-        if (existingChat) {
-            setSelectedChatId(existingChat.id);
+        if (existingChatLocal) {
+            console.log("✅ Found existing chat in local state:", existingChatLocal.id);
+            setSelectedChatId(existingChatLocal.id);
             return;
         }
 
+        // Query Firestore to check if chat already exists between these two users
         try {
-            // Store emails in lowercase for consistency
-            // Ensure both users are in the array (sorted for consistency)
+            console.log("🔍 Checking Firestore for existing chat between:", normalizedUserEmail, "and", normalizedEmail);
+            
+            // Query for chats where both users are in the users array
+            const chatsRef = collection(db, "chats");
+            const q = query(
+                chatsRef,
+                where("users", "array-contains", normalizedUserEmail)
+            );
+            
+            const querySnapshot = await getDocs(q);
+            let existingChat = null;
+            
+            querySnapshot.forEach((docSnapshot) => {
+                const chatData = docSnapshot.data();
+                const chatUsers = chatData.users?.map(u => u?.toLowerCase()) || [];
+                
+                // Check if both users are in this chat
+                if (chatUsers.includes(normalizedEmail) && chatUsers.includes(normalizedUserEmail)) {
+                    existingChat = {
+                        id: docSnapshot.id,
+                        ...chatData
+                    };
+                }
+            });
+
+            if (existingChat) {
+                console.log("✅ Found existing chat in Firestore:", existingChat.id);
+                console.log("Chat users:", existingChat.users);
+                
+                // Ensure both users are in the users array (in case it's missing one)
+                const chatUsers = existingChat.users?.map(u => u?.toLowerCase()) || [];
+                const hasBothUsers = chatUsers.includes(normalizedUserEmail) && chatUsers.includes(normalizedEmail);
+                
+                if (!hasBothUsers) {
+                    console.log("⚠️ Chat exists but missing a user, updating...");
+                    const updatedUsers = [...new Set([...chatUsers, normalizedUserEmail, normalizedEmail])].sort();
+                    await setDoc(doc(db, "chats", existingChat.id), {
+                        users: updatedUsers
+                    }, { merge: true });
+                    console.log("✅ Updated chat users array:", updatedUsers);
+                }
+                
+                setSelectedChatId(existingChat.id);
+                return;
+            }
+
+            // No existing chat found, create a new one
+            console.log("📝 No existing chat found, creating new chat...");
             const chatUsers = [normalizedUserEmail, normalizedEmail].sort();
             
             const newChat = await addDoc(collection(db, "chats"), {
@@ -241,7 +289,9 @@ function Sidebar({ selectedChatId, setSelectedChatId }) {
             console.log("Chat users:", chatUsers);
             setSelectedChatId(newChat.id);
         } catch (error) {
-            console.error("❌ Error creating chat:", error);
+            console.error("❌ Error creating/checking chat:", error);
+            console.error("Error code:", error.code);
+            console.error("Error message:", error.message);
             alert("Error creating chat. Please try again.");
         }
     };
