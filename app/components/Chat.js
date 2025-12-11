@@ -130,7 +130,7 @@ function Chat({ chatId }) {
     const sendMessage = async (e) => {
         e.preventDefault();
         
-        if (!user || !chatId) return;
+        if (!user || !chatId || !chatData) return;
 
         const validation = validateMessage(inputMessage);
         if (!validation.valid) {
@@ -139,10 +139,32 @@ function Chat({ chatId }) {
         }
 
         const messageText = inputMessage.trim();
+        const normalizedSenderEmail = user.email?.toLowerCase();
 
         try {
-            // Normalize email to lowercase for consistency
-            const normalizedSenderEmail = user.email?.toLowerCase();
+            // Ensure chat has both users in the users array
+            const recipientEmail = getRecipientEmail();
+            const normalizedRecipientEmail = recipientEmail?.toLowerCase();
+            
+            if (normalizedRecipientEmail && chatData.users) {
+                const chatUsers = chatData.users.map(u => u?.toLowerCase());
+                const hasBothUsers = chatUsers.includes(normalizedSenderEmail) && 
+                                     chatUsers.includes(normalizedRecipientEmail);
+                
+                if (!hasBothUsers) {
+                    // Update chat to include both users
+                    const updatedUsers = [...new Set([
+                        ...chatData.users.map(u => u?.toLowerCase()),
+                        normalizedSenderEmail,
+                        normalizedRecipientEmail
+                    ])];
+                    
+                    await updateDoc(doc(db, "chats", chatId), {
+                        users: updatedUsers,
+                    });
+                    console.log("Updated chat users array:", updatedUsers);
+                }
+            }
             
             // Add message to subcollection
             await addDoc(collection(db, "chats", chatId, "messages"), {
@@ -157,10 +179,17 @@ function Chat({ chatId }) {
                 timestamp: serverTimestamp(),
             });
 
+            console.log("✅ Message sent successfully");
             setInputMessage("");
             inputRef.current?.focus();
         } catch (error) {
-            console.error("Error sending message:", error);
+            console.error("❌ Error sending message:", error);
+            console.error("Error details:", {
+                code: error.code,
+                message: error.message,
+                chatId: chatId,
+                user: user.email
+            });
             alert("Error sending message. Please try again.");
         }
     };

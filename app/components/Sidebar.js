@@ -54,13 +54,31 @@ function Sidebar({ selectedChatId, setSelectedChatId }) {
                 id: doc.id,
                 ...doc.data(),
             }));
+            
+            console.log("📋 Chats loaded for user:", normalizedEmail, "Count:", chatsData.length);
+            chatsData.forEach((chat, idx) => {
+                console.log(`Chat ${idx + 1}:`, {
+                    id: chat.id,
+                    users: chat.users,
+                    lastMessage: chat.lastMessage?.substring(0, 30)
+                });
+            });
+            
             // Sort by timestamp (newest first), or by creation if no timestamp
             chatsData.sort((a, b) => {
-                const timeA = a.timestamp?.toDate?.() || new Date(0);
-                const timeB = b.timestamp?.toDate?.() || new Date(0);
-                return timeB - timeA;
+                try {
+                    const timeA = a.timestamp?.toDate?.() || new Date(0);
+                    const timeB = b.timestamp?.toDate?.() || new Date(0);
+                    return timeB.getTime() - timeA.getTime();
+                } catch (error) {
+                    return 0;
+                }
             });
             setChats(chatsData);
+        }, (error) => {
+            console.error("❌ Error listening to chats:", error);
+            console.error("Error code:", error.code);
+            console.error("Error message:", error.message);
         });
 
         return () => unsubscribe();
@@ -148,14 +166,19 @@ function Sidebar({ selectedChatId, setSelectedChatId }) {
 
         try {
             // Store emails in lowercase for consistency
+            // Ensure both users are in the array (sorted for consistency)
+            const chatUsers = [normalizedUserEmail, normalizedEmail].sort();
+            
             const newChat = await addDoc(collection(db, "chats"), {
-                users: [normalizedUserEmail, normalizedEmail],
+                users: chatUsers,
                 timestamp: serverTimestamp(),
+                lastMessage: "",
             });
-            console.log("Chat created successfully:", newChat.id);
+            console.log("✅ Chat created successfully:", newChat.id);
+            console.log("Chat users:", chatUsers);
             setSelectedChatId(newChat.id);
         } catch (error) {
-            console.error("Error creating chat:", error);
+            console.error("❌ Error creating chat:", error);
             alert("Error creating chat. Please try again.");
         }
     };
