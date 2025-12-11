@@ -7,7 +7,7 @@ import SearchIcon from "@mui/icons-material/Search";
 import ExitToAppIcon from "@mui/icons-material/ExitToApp";
 import PersonIcon from "@mui/icons-material/Person";
 import { db, auth } from "../../firebase";
-import { collection, addDoc, query, where, onSnapshot, orderBy, doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, query, where, onSnapshot, orderBy, doc, setDoc, serverTimestamp, getDocs } from "firebase/firestore";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
@@ -20,6 +20,7 @@ function Sidebar({ selectedChatId, setSelectedChatId }) {
     const [chats, setChats] = useState([]);
     const [searchQuery, setSearchQuery] = useState("");
     const [anchorEl, setAnchorEl] = useState(null);
+    const [recipientUsers, setRecipientUsers] = useState({}); // Map of email -> user data
     const open = Boolean(anchorEl);
 
     useEffect(() => {
@@ -44,12 +45,18 @@ function Sidebar({ selectedChatId, setSelectedChatId }) {
         const normalizedEmail = user.email?.toLowerCase();
         if (!normalizedEmail) return;
 
+        // Helper function to get recipient email from a chat
+        const getRecipientEmailFromChat = (chat) => {
+            const normalizedUserEmail = user.email?.toLowerCase();
+            return chat.users?.find(email => email?.toLowerCase() !== normalizedUserEmail) || chat.users?.[0] || "";
+        };
+
         const q = query(
             collection(db, "chats"),
             where("users", "array-contains", normalizedEmail)
         );
 
-        const unsubscribe = onSnapshot(q, (snapshot) => {
+        const unsubscribe = onSnapshot(q, async (snapshot) => {
             const chatsData = snapshot.docs.map((doc) => ({
                 id: doc.id,
                 ...doc.data(),
@@ -75,6 +82,62 @@ function Sidebar({ selectedChatId, setSelectedChatId }) {
                 }
             });
             setChats(chatsData);
+            
+            // Fetch user data for all recipients
+            const recipientEmails = new Set();
+            chatsData.forEach(chat => {
+                const recipientEmail = getRecipientEmailFromChat(chat);
+                if (recipientEmail) {
+                    recipientEmails.add(recipientEmail.toLowerCase());
+                }
+            });
+            
+            // Fetch user data for recipients
+            if (recipientEmails.size > 0) {
+                const usersRef = collection(db, "users");
+                const usersQuery = query(usersRef, where("email", "in", Array.from(recipientEmails)));
+                
+                try {
+                    const usersSnapshot = await getDocs(usersQuery);
+                    const usersMap = {};
+                    usersSnapshot.forEach((userDoc) => {
+                        const userData = userDoc.data();
+                        if (userData.email) {
+                            usersMap[userData.email.toLowerCase()] = {
+                                photoURL: userData.photoURL,
+                                displayName: userData.displayName,
+                                email: userData.email
+                            };
+                        }
+                    });
+                    console.log("✅ Fetched user data for recipients:", usersMap);
+                    setRecipientUsers(usersMap);
+                } catch (error) {
+                    console.error("Error fetching recipient user data:", error);
+                    // If "in" query fails (more than 10 items), fetch individually
+                    if (error.code === 'invalid-argument' && recipientEmails.size > 10) {
+                        console.log("Too many recipients, fetching individually...");
+                        const usersMap = {};
+                        for (const email of recipientEmails) {
+                            try {
+                                const userQuery = query(usersRef, where("email", "==", email));
+                                const userSnapshot = await getDocs(userQuery);
+                                if (!userSnapshot.empty) {
+                                    const userData = userSnapshot.docs[0].data();
+                                    usersMap[email] = {
+                                        photoURL: userData.photoURL,
+                                        displayName: userData.displayName,
+                                        email: userData.email
+                                    };
+                                }
+                            } catch (err) {
+                                console.error(`Error fetching user ${email}:`, err);
+                            }
+                        }
+                        setRecipientUsers(usersMap);
+                    }
+                }
+            }
         }, (error) => {
             console.error("❌ Error listening to chats:", error);
             console.error("Error code:", error.code);
@@ -273,6 +336,8 @@ function Sidebar({ selectedChatId, setSelectedChatId }) {
                 ) : (
                     filteredChats.map((chat) => {
                         const recipientEmail = getRecipientEmail(chat);
+                        const normalizedRecipientEmail = recipientEmail?.toLowerCase();
+                        const recipientUser = recipientUsers[normalizedRecipientEmail];
                         const lastMessage = chat.lastMessage || "";
                         return (
                             <Tooltip 
@@ -285,10 +350,14 @@ function Sidebar({ selectedChatId, setSelectedChatId }) {
                                     $isSelected={selectedChatId === chat.id}
                                 >
                                     <ChatAvatar>
-                                        {recipientEmail[0]?.toUpperCase()}
+                                        {recipientUser?.photoURL ? (
+                                            <AvatarImage src={recipientUser.photoURL} alt={recipientUser.displayName || recipientEmail} />
+                                        ) : (
+                                            recipientEmail[0]?.toUpperCase()
+                                        )}
                                     </ChatAvatar>
                                     <ChatInfo>
-                                        <ChatName>{recipientEmail}</ChatName>
+                                        <ChatName>{recipientUser?.displayName || recipientEmail}</ChatName>
                                         <LastMessage>{lastMessage || "No messages yet"}</LastMessage>
                                     </ChatInfo>
                                 </ChatItem>
@@ -466,6 +535,15 @@ const ChatAvatar = styled.div`
     font-size: 18px;
     margin-right: 15px;
     flex-shrink: 0;
+    overflow: hidden;
+    position: relative;
+`;
+
+const AvatarImage = styled.img`
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
 `;
 
 const ChatInfo = styled.div`
