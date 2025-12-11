@@ -18,39 +18,89 @@ function Chat({ chatId }) {
     const inputRef = useRef(null);
 
     useEffect(() => {
-        if (!chatId || !user) return;
+        if (!chatId || !user) {
+            console.log("Chat effect skipped - chatId:", chatId, "user:", user?.email);
+            return;
+        }
+
+        console.log("Setting up chat listeners for chatId:", chatId, "user:", user.email);
 
         // Get chat data
         const chatRef = doc(db, "chats", chatId);
         const unsubscribeChat = onSnapshot(chatRef, (snapshot) => {
             if (snapshot.exists()) {
                 const data = { id: snapshot.id, ...snapshot.data() };
-                console.log("Chat data loaded:", data);
+                console.log("✅ Chat data loaded:", data);
+                console.log("Chat users:", data.users);
                 setChatData(data);
             } else {
-                console.error("Chat document does not exist:", chatId);
+                console.error("❌ Chat document does not exist:", chatId);
             }
         }, (error) => {
-            console.error("Error listening to chat:", error);
+            console.error("❌ Error listening to chat:", error);
         });
 
-        // Get messages
-        const q = query(
-            collection(db, "chats", chatId, "messages"),
-            orderBy("timestamp", "asc")
+        // Get messages - use simple query and sort client-side to avoid index issues
+        const messagesRef = collection(db, "chats", chatId, "messages");
+        console.log("Setting up messages listener for chat:", chatId);
+        
+        const unsubscribeMessages = onSnapshot(
+            messagesRef,
+            (snapshot) => {
+                console.log("📨 Snapshot received, document count:", snapshot.docs.length);
+                
+                const messagesData = snapshot.docs.map((docSnapshot) => {
+                    const data = docSnapshot.data();
+                    const message = {
+                        id: docSnapshot.id,
+                        text: data.text || "",
+                        sender: data.sender || "",
+                        timestamp: data.timestamp || null,
+                    };
+                    console.log("📝 Message from doc:", {
+                        id: message.id,
+                        text: message.text,
+                        sender: message.sender,
+                        hasTimestamp: !!message.timestamp
+                    });
+                    return message;
+                });
+                
+                // Sort client-side by timestamp
+                messagesData.sort((a, b) => {
+                    try {
+                        const timeA = a.timestamp?.toDate ? a.timestamp.toDate() : (a.timestamp ? new Date(a.timestamp) : new Date(0));
+                        const timeB = b.timestamp?.toDate ? b.timestamp.toDate() : (b.timestamp ? new Date(b.timestamp) : new Date(0));
+                        return timeA.getTime() - timeB.getTime();
+                    } catch (error) {
+                        console.error("Error sorting messages:", error);
+                        return 0;
+                    }
+                });
+                
+                console.log("✅ Total messages after processing:", messagesData.length);
+                console.log("Current user:", user.email);
+                messagesData.forEach((msg, idx) => {
+                    const isOwn = msg.sender?.toLowerCase() === user.email?.toLowerCase();
+                    console.log(`Message ${idx + 1}:`, {
+                        text: msg.text?.substring(0, 50),
+                        sender: msg.sender,
+                        isOwn: isOwn,
+                        willDisplay: true
+                    });
+                });
+                
+                setMessages(messagesData);
+            },
+            (error) => {
+                console.error("❌ Error listening to messages:", error);
+                console.error("Error code:", error.code);
+                console.error("Error message:", error.message);
+                console.error("Error stack:", error.stack);
+                // Set empty array on error to prevent stale data
+                setMessages([]);
+            }
         );
-
-        const unsubscribeMessages = onSnapshot(q, (snapshot) => {
-            const messagesData = snapshot.docs.map((doc) => ({
-                id: doc.id,
-                ...doc.data(),
-            }));
-            console.log("Messages received:", messagesData.length, "messages");
-            console.log("Messages data:", messagesData);
-            setMessages(messagesData);
-        }, (error) => {
-            console.error("Error listening to messages:", error);
-        });
 
         return () => {
             unsubscribeChat();
