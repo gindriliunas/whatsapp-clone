@@ -389,6 +389,14 @@ function Sidebar({ selectedChatId, setSelectedChatId }) {
                         const normalizedRecipientEmail = recipientEmail?.toLowerCase();
                         const recipientUser = recipientUsers[normalizedRecipientEmail];
                         const lastMessage = chat.lastMessage || "";
+                        const handleChatClick = (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (e.button === 0 || e.type === 'click') { // Left click only
+                                setSelectedChatId(chat.id);
+                            }
+                        };
+
                         return (
                             <Tooltip 
                                 key={chat.id}
@@ -396,8 +404,28 @@ function Sidebar({ selectedChatId, setSelectedChatId }) {
                                 arrow
                             >
                                 <ChatItem
-                                    onClick={() => setSelectedChatId(chat.id)}
+                                    onClick={handleChatClick}
+                                    onMouseDown={(e) => {
+                                        // Prevent middle mouse button and right click from opening new window
+                                        if (e.button !== 0) {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                        }
+                                    }}
+                                    onContextMenu={(e) => {
+                                        // Prevent right-click context menu if needed
+                                        e.preventDefault();
+                                    }}
                                     $isSelected={selectedChatId === chat.id}
+                                    role="button"
+                                    tabIndex={0}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' || e.key === ' ') {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            setSelectedChatId(chat.id);
+                                        }
+                                    }}
                                 >
                                     <ChatAvatar>
                                         {recipientUser?.photoURL ? (
@@ -566,9 +594,22 @@ const ChatItem = styled.div`
     cursor: pointer;
     border-bottom: 1px solid #f0f0f0;
     background-color: ${props => props.$isSelected ? "#e5f5f0" : "white"};
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
     
     &:hover {
         background-color: ${props => props.$isSelected ? "#e5f5f0" : "#f5f5f5"};
+    }
+    
+    &:focus {
+        outline: 2px solid #007a5a;
+        outline-offset: -2px;
+    }
+    
+    &:active {
+        background-color: ${props => props.$isSelected ? "#d4ede5" : "#e8e8e8"};
     }
 `;
 
