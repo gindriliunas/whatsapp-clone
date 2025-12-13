@@ -390,11 +390,28 @@ function Sidebar({ selectedChatId, setSelectedChatId }) {
                         const recipientUser = recipientUsers[normalizedRecipientEmail];
                         const lastMessage = chat.lastMessage || "";
                         const handleChatClick = (e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            if (e.button === 0 || e.type === 'click') { // Left click only
-                                setSelectedChatId(chat.id);
+                            // Aggressively prevent all default behaviors for Safari
+                            if (e) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                e.stopImmediatePropagation();
+                                
+                                // Prevent any navigation or window opening
+                                if (e.target && e.target.href) {
+                                    e.target.href = 'javascript:void(0)';
+                                }
+                                
+                                // Prevent Safari from treating this as a link
+                                if (e.currentTarget && e.currentTarget.href) {
+                                    e.currentTarget.href = undefined;
+                                }
                             }
+                            
+                            // Set the selected chat
+                            setSelectedChatId(chat.id);
+                            
+                            // Return false as additional safeguard
+                            return false;
                         };
 
                         return (
@@ -406,18 +423,36 @@ function Sidebar({ selectedChatId, setSelectedChatId }) {
                                 <ChatItem
                                     onClick={handleChatClick}
                                     onMouseDown={(e) => {
-                                        // Prevent middle mouse button and right click from opening new window
+                                        // Prevent all non-left clicks and default behaviors
                                         if (e.button !== 0) {
                                             e.preventDefault();
                                             e.stopPropagation();
+                                            e.stopImmediatePropagation();
+                                            return false;
                                         }
+                                        // Also prevent default for left click to be safe
+                                        e.preventDefault();
+                                    }}
+                                    onTouchStart={(e) => {
+                                        // Prevent Safari touch events from causing navigation
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                    }}
+                                    onTouchEnd={(e) => {
+                                        // Handle touch end for mobile Safari
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setSelectedChatId(chat.id);
                                     }}
                                     onContextMenu={(e) => {
-                                        // Prevent right-click context menu if needed
+                                        // Prevent right-click context menu
                                         e.preventDefault();
+                                        e.stopPropagation();
+                                        return false;
                                     }}
                                     $isSelected={selectedChatId === chat.id}
                                     role="button"
+                                    aria-label={`Open chat with ${recipientEmail}`}
                                     tabIndex={0}
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter' || e.key === ' ') {
@@ -489,7 +524,7 @@ const Header = styled.div`
 `;
 
 const UserAvatar = styled(Avatar)`
-    margin: 10px;
+margin: 10px;
     cursor: pointer;
     background-color: #007a5a;
     :hover {
@@ -598,6 +633,13 @@ const ChatItem = styled.div`
     -webkit-user-select: none;
     -moz-user-select: none;
     -ms-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    touch-action: manipulation;
+    
+    /* Prevent Safari from treating this as a link */
+    text-decoration: none;
+    color: inherit;
     
     &:hover {
         background-color: ${props => props.$isSelected ? "#e5f5f0" : "#f5f5f5"};
@@ -610,6 +652,11 @@ const ChatItem = styled.div`
     
     &:active {
         background-color: ${props => props.$isSelected ? "#d4ede5" : "#e8e8e8"};
+    }
+    
+    /* Prevent any link-like behavior in Safari */
+    &[href] {
+        pointer-events: none;
     }
 `;
 
