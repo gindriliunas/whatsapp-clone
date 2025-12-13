@@ -3,12 +3,13 @@ import styled from "styled-components";
 import SendIcon from "@mui/icons-material/Send";
 import AttachFileIcon from "@mui/icons-material/AttachFile";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { db, auth } from "../../firebase";
 import { collection, addDoc, query, onSnapshot, orderBy, serverTimestamp, updateDoc, doc, getDoc, where, getDocs } from "firebase/firestore";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { useState, useEffect, useRef } from "react";
 
-function Chat({ chatId }) {
+function Chat({ chatId, onBack }) {
     const [user] = useAuthState(auth);
     const [messages, setMessages] = useState([]);
     const [inputMessage, setInputMessage] = useState("");
@@ -128,7 +129,9 @@ function Chat({ chatId }) {
     };
 
     const sendMessage = async (e) => {
-        e.preventDefault();
+        if (e && typeof e.preventDefault === 'function') {
+            e.preventDefault();
+        }
         
         if (!user || !chatId || !chatData) return;
 
@@ -281,10 +284,41 @@ function Chat({ chatId }) {
 
     const recipientEmail = getRecipientEmail();
 
+    const handleBack = (e) => {
+        if (e) {
+            if (typeof e.preventDefault === 'function') {
+                e.preventDefault();
+            }
+            if (typeof e.stopPropagation === 'function') {
+                e.stopPropagation();
+            }
+        }
+        if (onBack) {
+            onBack();
+        } else if (typeof window !== 'undefined') {
+            // Fallback: try to go back in browser history or close window
+            if (window.history.length > 1) {
+                window.history.back();
+            } else if (window.opener) {
+                // If opened in a new window, try to close it
+                window.close();
+            }
+        }
+    };
+
     return (
         <Container>
             <Header>
                 <HeaderLeft>
+                    {onBack && (
+                        <BackButton 
+                            onClick={handleBack}
+                            title="Go back to chat list"
+                            aria-label="Go back to chat list"
+                        >
+                            <ArrowBackIcon />
+                        </BackButton>
+                    )}
                     <ChatAvatar>
                         {recipientEmail[0]?.toUpperCase()}
                     </ChatAvatar>
@@ -347,8 +381,10 @@ function Chat({ chatId }) {
                             }
                         }}
                         onKeyPress={(e) => {
-                            if (e.key === "Enter" && !e.shiftKey) {
-                                e.preventDefault();
+                            if (e && e.key === "Enter" && !e.shiftKey) {
+                                if (typeof e.preventDefault === 'function') {
+                                    e.preventDefault();
+                                }
                                 sendMessage(e);
                             }
                         }}
@@ -404,6 +440,38 @@ const HeaderLeft = styled.div`
     align-items: center;
     flex: 1;
     min-width: 0;
+    gap: 10px;
+`;
+
+const BackButton = styled.button`
+    background-color: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #54656f;
+    margin-right: 5px;
+    transition: background-color 0.2s;
+    
+    &:hover {
+        background-color: #e0e0e0;
+    }
+    
+    &:active {
+        background-color: #d0d0d0;
+    }
+    
+    svg {
+        font-size: 24px;
+    }
+    
+    /* Prevent Safari from treating this as a link */
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    touch-action: manipulation;
 `;
 
 const HeaderRight = styled.div`

@@ -392,9 +392,15 @@ function Sidebar({ selectedChatId, setSelectedChatId }) {
                         const handleChatClick = (e) => {
                             // Aggressively prevent all default behaviors for Safari
                             if (e) {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                e.stopImmediatePropagation();
+                                if (typeof e.preventDefault === 'function') {
+                                    e.preventDefault();
+                                }
+                                if (typeof e.stopPropagation === 'function') {
+                                    e.stopPropagation();
+                                }
+                                if (typeof e.stopImmediatePropagation === 'function') {
+                                    e.stopImmediatePropagation();
+                                }
                                 
                                 // Prevent any navigation or window opening
                                 if (e.target && e.target.href) {
@@ -424,30 +430,56 @@ function Sidebar({ selectedChatId, setSelectedChatId }) {
                                     onClick={handleChatClick}
                                     onMouseDown={(e) => {
                                         // Prevent all non-left clicks and default behaviors
-                                        if (e.button !== 0) {
-                                            e.preventDefault();
-                                            e.stopPropagation();
-                                            e.stopImmediatePropagation();
+                                        if (e && e.button !== 0) {
+                                            if (typeof e.preventDefault === 'function') {
+                                                e.preventDefault();
+                                            }
+                                            if (typeof e.stopPropagation === 'function') {
+                                                e.stopPropagation();
+                                            }
+                                            if (typeof e.stopImmediatePropagation === 'function') {
+                                                e.stopImmediatePropagation();
+                                            }
                                             return false;
                                         }
                                         // Also prevent default for left click to be safe
-                                        e.preventDefault();
+                                        if (e && typeof e.preventDefault === 'function') {
+                                            e.preventDefault();
+                                        }
                                     }}
                                     onTouchStart={(e) => {
                                         // Prevent Safari touch events from causing navigation
-                                        e.preventDefault();
-                                        e.stopPropagation();
+                                        if (e) {
+                                            if (typeof e.preventDefault === 'function') {
+                                                e.preventDefault();
+                                            }
+                                            if (typeof e.stopPropagation === 'function') {
+                                                e.stopPropagation();
+                                            }
+                                        }
                                     }}
                                     onTouchEnd={(e) => {
                                         // Handle touch end for mobile Safari
-                                        e.preventDefault();
-                                        e.stopPropagation();
+                                        if (e) {
+                                            if (typeof e.preventDefault === 'function') {
+                                                e.preventDefault();
+                                            }
+                                            if (typeof e.stopPropagation === 'function') {
+                                                e.stopPropagation();
+                                            }
+                                        }
                                         setSelectedChatId(chat.id);
                                     }}
                                     onContextMenu={(e) => {
                                         // Prevent right-click context menu
-                                        e.preventDefault();
-                                        e.stopPropagation();
+                                        if (e) {
+                                            if (typeof e.preventDefault === 'function') {
+                                                e.preventDefault();
+                                            }
+                                            if (typeof e.stopPropagation === 'function') {
+                                                e.stopPropagation();
+                                            }
+                                        }
                                         return false;
                                     }}
                                     $isSelected={selectedChatId === chat.id}
@@ -455,9 +487,13 @@ function Sidebar({ selectedChatId, setSelectedChatId }) {
                                     aria-label={`Open chat with ${recipientEmail}`}
                                     tabIndex={0}
                                     onKeyDown={(e) => {
-                                        if (e.key === 'Enter' || e.key === ' ') {
-                                            e.preventDefault();
-                                            e.stopPropagation();
+                                        if (e && (e.key === 'Enter' || e.key === ' ')) {
+                                            if (typeof e.preventDefault === 'function') {
+                                                e.preventDefault();
+                                            }
+                                            if (typeof e.stopPropagation === 'function') {
+                                                e.stopPropagation();
+                                            }
                                             setSelectedChatId(chat.id);
                                         }
                                     }}

@@ -7,10 +7,14 @@ import styled from "styled-components";
 export default function Home() {
   const [selectedChatId, setSelectedChatId] = useState(null);
 
+  const handleBack = () => {
+    setSelectedChatId(null);
+  };
+
   return (
     <Container>
       <Sidebar selectedChatId={selectedChatId} setSelectedChatId={setSelectedChatId} />
-      <Chat chatId={selectedChatId} />
+      <Chat chatId={selectedChatId} onBack={handleBack} />
     </Container>
   );
 }
