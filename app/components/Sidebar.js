@@ -10,7 +10,7 @@ import { db, auth } from "../../firebase";
 import { collection, addDoc, query, where, onSnapshot, orderBy, doc, setDoc, serverTimestamp, getDocs } from "firebase/firestore";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { signOut } from "firebase/auth";
 import { createOrUpdateUser, updateUserLogout } from "../utils/userUtils";
 
@@ -391,8 +391,12 @@ function Sidebar({ selectedChatId, setSelectedChatId }) {
                         const lastMessage = chat.lastMessage || "";
                         const handleChatClick = (e) => {
                             // Aggressively prevent all default behaviors for all browsers
-                            if (e) {
-                                // Prevent default and stop all propagation
+                            if (!e || !isMountedRef.current) {
+                                return false;
+                            }
+                            
+                            // Prevent default and stop all propagation
+                            try {
                                 if (typeof e.preventDefault === 'function') {
                                     e.preventDefault();
                                 }
@@ -411,6 +415,10 @@ function Sidebar({ selectedChatId, setSelectedChatId }) {
                                     if (e.target.onclick) {
                                         e.target.onclick = null;
                                     }
+                                    // Remove any link attributes
+                                    if (e.target.removeAttribute) {
+                                        e.target.removeAttribute('href');
+                                    }
                                 }
                                 
                                 // Prevent from treating this as a link
@@ -421,16 +429,27 @@ function Sidebar({ selectedChatId, setSelectedChatId }) {
                                     if (e.currentTarget.onclick) {
                                         e.currentTarget.onclick = null;
                                     }
+                                    // Remove any link attributes
+                                    if (e.currentTarget.removeAttribute) {
+                                        e.currentTarget.removeAttribute('href');
+                                    }
                                 }
                                 
-                                // Prevent browser navigation
-                                if (e.defaultPrevented === false) {
+                                // Prevent browser navigation - double check
+                                if (!e.defaultPrevented && typeof e.preventDefault === 'function') {
                                     e.preventDefault();
                                 }
+                            } catch (error) {
+                                console.error('Error in handleChatClick:', error);
                             }
                             
-                            // Set the selected chat immediately
-                            setSelectedChatId(chat.id);
+                            // Set the selected chat immediately - use functional update for safety
+                            if (isMountedRef.current) {
+                                setSelectedChatId((prevId) => {
+                                    // Only update if different to avoid unnecessary re-renders
+                                    return prevId !== chat.id ? chat.id : prevId;
+                                });
+                            }
                             
                             // Return false as additional safeguard
                             return false;
