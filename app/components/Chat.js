@@ -404,9 +404,12 @@ const Container = styled.div`
     display: flex;
     flex-direction: column;
     height: 100vh;
+    width: 100%;
+    max-width: 100%;
     background-color: #e5ddd5;
     background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' xmlns='http://www.w3.org/2000/svg'%3E%3Cdefs%3E%3Cpattern id='a' patternUnits='userSpaceOnUse' width='100' height='100' patternTransform='scale(0.5) rotate(0)'%3E%3Crect id='b' width='200' height='200' fill='hsla(0,0%25,100%25,0)'/%3E%3Cpath d='M100 100h50v50h-50z' fill='hsla(0,0%25,0%25,0.02)'/%3E%3C/pattern%3E%3C/defs%3E%3Crect fill='url(%23a)' height='100%25' width='100%25'/%3E%3C/svg%3E");
     flex: 1;
+    overflow: hidden;
 `;
 
 const EmptyChatContainer = styled.div`

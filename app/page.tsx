@@ -23,5 +23,12 @@ const Container = styled.div`
   display: flex;
   height: 100vh;
   width: 100vw;
+  max-width: 100vw;
   overflow: hidden;
+  position: relative;
+  
+  /* Prevent any full-screen behavior */
+  & > * {
+    flex-shrink: 0;
+  }
 `;

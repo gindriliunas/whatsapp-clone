@@ -390,8 +390,9 @@ function Sidebar({ selectedChatId, setSelectedChatId }) {
                         const recipientUser = recipientUsers[normalizedRecipientEmail];
                         const lastMessage = chat.lastMessage || "";
                         const handleChatClick = (e) => {
-                            // Aggressively prevent all default behaviors for Safari
+                            // Aggressively prevent all default behaviors for all browsers
                             if (e) {
+                                // Prevent default and stop all propagation
                                 if (typeof e.preventDefault === 'function') {
                                     e.preventDefault();
                                 }
@@ -403,17 +404,32 @@ function Sidebar({ selectedChatId, setSelectedChatId }) {
                                 }
                                 
                                 // Prevent any navigation or window opening
-                                if (e.target && e.target.href) {
-                                    e.target.href = 'javascript:void(0)';
+                                if (e.target) {
+                                    if (e.target.href) {
+                                        e.target.href = 'javascript:void(0)';
+                                    }
+                                    if (e.target.onclick) {
+                                        e.target.onclick = null;
+                                    }
                                 }
                                 
-                                // Prevent Safari from treating this as a link
-                                if (e.currentTarget && e.currentTarget.href) {
-                                    e.currentTarget.href = undefined;
+                                // Prevent from treating this as a link
+                                if (e.currentTarget) {
+                                    if (e.currentTarget.href) {
+                                        e.currentTarget.href = undefined;
+                                    }
+                                    if (e.currentTarget.onclick) {
+                                        e.currentTarget.onclick = null;
+                                    }
+                                }
+                                
+                                // Prevent browser navigation
+                                if (e.defaultPrevented === false) {
+                                    e.preventDefault();
                                 }
                             }
                             
-                            // Set the selected chat
+                            // Set the selected chat immediately
                             setSelectedChatId(chat.id);
                             
                             // Return false as additional safeguard
@@ -425,9 +441,14 @@ function Sidebar({ selectedChatId, setSelectedChatId }) {
                                 key={chat.id}
                                 title={`Click to open chat with ${recipientEmail}`}
                                 arrow
+                                disableHoverListener={false}
+                                disableFocusListener={true}
+                                disableTouchListener={true}
                             >
                                 <ChatItem
                                     onClick={handleChatClick}
+                                    data-chat-id={chat.id}
+                                    data-no-navigate="true"
                                     onMouseDown={(e) => {
                                         // Prevent all non-left clicks and default behaviors
                                         if (e && e.button !== 0) {
@@ -673,9 +694,12 @@ const ChatItem = styled.div`
     -webkit-touch-callout: none;
     touch-action: manipulation;
     
-    /* Prevent Safari from treating this as a link */
-    text-decoration: none;
+    /* Prevent all browsers from treating this as a link */
+    text-decoration: none !important;
     color: inherit;
+    
+    /* Explicitly prevent link behavior */
+    pointer-events: auto;
     
     &:hover {
         background-color: ${props => props.$isSelected ? "#e5f5f0" : "#f5f5f5"};
@@ -690,9 +714,14 @@ const ChatItem = styled.div`
         background-color: ${props => props.$isSelected ? "#d4ede5" : "#e8e8e8"};
     }
     
-    /* Prevent any link-like behavior in Safari */
+    /* Prevent any link-like behavior in all browsers */
     &[href] {
         pointer-events: none;
+    }
+    
+    /* Prevent Edge from treating as navigation */
+    &[data-no-navigate="true"] {
+        -ms-touch-action: manipulation;
     }
 `;
 
