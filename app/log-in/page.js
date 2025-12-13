@@ -109,49 +109,73 @@ export default function Login() {
     const [user, loading] = useAuthState(auth);
     const [signingIn, setSigningIn] = useState(false);
     const [errorMessage, setErrorMessage] = useState("");
+    const [checkingRedirect, setCheckingRedirect] = useState(true);
     const router = useRouter();
 
+    // Check for redirect result on mount (especially important for mobile)
     useEffect(() => {
-        // Verify Firebase auth is initialized
-        console.log("Firebase Auth initialized:", auth);
-        console.log("Current user:", user);
-        console.log("Loading state:", loading);
-        
-        // Check for redirect result (in case popup was blocked and redirect was used)
         const checkRedirectResult = async () => {
             try {
+                console.log("Checking for redirect result...");
                 const result = await getRedirectResult(auth);
-                if (result) {
-                    console.log("Sign-in via redirect successful:", result.user.email);
+                if (result && result.user) {
+                    console.log("✅ Sign-in via redirect successful:", result.user.email);
                     
                     // Update user document for redirect sign-in
-                    await createOrUpdateUser(result.user);
+                    try {
+                        await createOrUpdateUser(result.user);
+                        console.log("User document updated after redirect");
+                    } catch (docError) {
+                        console.error("Error creating user document after redirect:", docError);
+                        // Continue even if document creation fails
+                    }
+                    
+                    // The user state should update automatically via useAuthState
+                    // But we'll also trigger navigation explicitly
+                    console.log("Redirect sign-in complete, user should be available now");
+                } else {
+                    console.log("No redirect result found");
                 }
             } catch (error) {
                 // Only log if it's not a "no redirect pending" error
-                if (error.code !== 'auth/no-auth-event') {
+                if (error.code !== 'auth/no-auth-event' && error.code !== 'auth/popup-closed-by-user') {
                     console.error("Redirect sign-in error:", error);
+                    setErrorMessage(`Sign-in error: ${error.message || 'Unknown error'}`);
+                } else {
+                    console.log("No pending redirect (this is normal)");
                 }
+            } finally {
+                setCheckingRedirect(false);
             }
         };
-        checkRedirectResult();
-    }, []);
+        
+        // Only check redirect result if we're not already signed in
+        if (!user && !loading) {
+            checkRedirectResult();
+        } else {
+            setCheckingRedirect(false);
+        }
+    }, []); // Run only on mount
 
+    // Navigate to home when user is authenticated
     useEffect(() => {
-        if (user) {
+        // Wait for both loading states to complete
+        if (!loading && !checkingRedirect && user) {
+            console.log("User authenticated, navigating to home...");
             // Create or update user document in Firestore
             createOrUpdateUser(user)
                 .then(() => {
                     console.log("User document ready, navigating to home");
-                    router.push("/");
+                    // Use replace instead of push to avoid back button issues
+                    router.replace("/");
                 })
                 .catch((error) => {
                     console.error("Error creating user document:", error);
                     // Still navigate even if document creation fails
-                    router.push("/");
+                    router.replace("/");
                 });
         }
-    }, [user, router]);
+    }, [user, loading, checkingRedirect, router]);
 
     const signIn = async () => {
         setSigningIn(true);
@@ -176,7 +200,25 @@ export default function Login() {
             console.log("Auth object:", auth);
             console.log("Auth domain:", auth.config?.authDomain);
             
-            // Try popup first
+            // Detect mobile devices - use redirect directly for better compatibility
+            const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || 
+                            (typeof window !== 'undefined' && window.innerWidth <= 768);
+            
+            if (isMobile) {
+                // On mobile, use redirect directly (popups are often blocked)
+                console.log("Mobile device detected, using redirect sign-in...");
+                try {
+                    await signInWithRedirect(auth, googleProvider);
+                    // Will redirect away, so we return here
+                    // The redirect result will be handled by the useEffect above
+                    return;
+                } catch (redirectError) {
+                    console.error("Redirect sign-in failed:", redirectError);
+                    throw redirectError;
+                }
+            }
+            
+            // On desktop, try popup first, fallback to redirect
             try {
                 console.log("Attempting popup sign-in...");
                 const result = await signInWithPopup(auth, googleProvider);
@@ -246,11 +288,23 @@ export default function Login() {
         }
     };
 
-    if (loading) {
+    // Show loading while checking auth state or redirect result
+    if (loading || checkingRedirect) {
         return (
             <LoginContainer>
                 <LoginBox>
                     <LoadingText>Loading...</LoadingText>
+                </LoginBox>
+            </LoginContainer>
+        );
+    }
+    
+    // If user is authenticated, don't show login screen (navigation will happen via useEffect)
+    if (user) {
+        return (
+            <LoginContainer>
+                <LoginBox>
+                    <LoadingText>Signing you in...</LoadingText>
                 </LoginBox>
             </LoginContainer>
         );
