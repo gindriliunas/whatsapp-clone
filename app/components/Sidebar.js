@@ -22,6 +22,15 @@ function Sidebar({ selectedChatId, setSelectedChatId }) {
     const [anchorEl, setAnchorEl] = useState(null);
     const [recipientUsers, setRecipientUsers] = useState({}); // Map of email -> user data
     const open = Boolean(anchorEl);
+    const isMountedRef = useRef(false);
+    
+    // Ensure component is mounted (client-side only)
+    useEffect(() => {
+        isMountedRef.current = true;
+        return () => {
+            isMountedRef.current = false;
+        };
+    }, []);
 
     useEffect(() => {
         if (!loading && !user) {
@@ -443,12 +452,10 @@ function Sidebar({ selectedChatId, setSelectedChatId }) {
                                 console.error('Error in handleChatClick:', error);
                             }
                             
-                            // Set the selected chat immediately - use functional update for safety
-                            if (isMountedRef.current) {
-                                setSelectedChatId((prevId) => {
-                                    // Only update if different to avoid unnecessary re-renders
-                                    return prevId !== chat.id ? chat.id : prevId;
-                                });
+                            // Set the selected chat immediately
+                            if (isMountedRef.current && typeof setSelectedChatId === 'function') {
+                                // Call directly - no delay needed
+                                setSelectedChatId(chat.id);
                             }
                             
                             // Return false as additional safeguard

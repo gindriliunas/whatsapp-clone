@@ -292,16 +292,28 @@ function Chat({ chatId, onBack }) {
             if (typeof e.stopPropagation === 'function') {
                 e.stopPropagation();
             }
+            if (typeof e.stopImmediatePropagation === 'function') {
+                e.stopImmediatePropagation();
+            }
         }
-        if (onBack) {
-            onBack();
-        } else if (typeof window !== 'undefined') {
-            // Fallback: try to go back in browser history or close window
-            if (window.history.length > 1) {
-                window.history.back();
-            } else if (window.opener) {
-                // If opened in a new window, try to close it
-                window.close();
+        
+        // Call the onBack callback if provided
+        if (onBack && typeof onBack === 'function') {
+            try {
+                onBack();
+            } catch (error) {
+                console.error('Error in onBack callback:', error);
+            }
+        }
+        
+        // Fallback: update URL directly
+        if (typeof window !== 'undefined') {
+            try {
+                const newUrl = new URL(window.location.href);
+                newUrl.searchParams.delete('chat');
+                window.history.replaceState({}, '', newUrl.toString());
+            } catch (error) {
+                console.error('Error updating URL:', error);
             }
         }
     };
